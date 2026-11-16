@@ -43,3 +43,4 @@ Tarayıcınızdan http://127.0.0.1:8000 adresine giderek kontrol paneline, http:
 ## Geliştirme Metodolojisi & Şeffaflık Beyanı
 
 > **AI-Assisted Engineering:** Bu proje; sistem mimarisi tasarımı, siber güvenlik kontrolleri (SSRF/XSS/Secret Management), modüler kod organizasyonu ve dokümantasyon süreçlerinde **yapay zeka ile eşli programlama (AI Pair Programming)** yaklaşımı benimsenerek geliştirilmiştir. Tüm kodlar yerel ortamda test edilmiş, doğrulanmış ve uçtan uca entegre edilmiştir.
+<img width="1241" height="654" alt="ekran" src="https://github.com/user-attachments/assets/7ce934be-e62a-4547-aa28-1f2eb5a85f48" />
