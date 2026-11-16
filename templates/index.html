@@ -1,0 +1,179 @@
+﻿<!DOCTYPE html>
+<html lang="tr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FiyatRadar | B2B Rakip İstihbarat Paneli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased">
+
+    <div class="max-w-6xl mx-auto px-4 py-8" x-data="radarApp()" x-init="fetchProducts()">
+        
+        <!-- Üst Başlık & Durum Çubuğu -->
+        <header class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6 mb-8 gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="h-3 w-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">FiyatRadar <span class="text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full ml-1">B2B Engine v1.0</span></h1>
+                </div>
+                <p class="text-slate-400 text-sm mt-1">Otonom Rakip Fiyat & Stok İstihbarat ve Telegram Alarm Sistemi</p>
+            </div>
+            
+            <button @click="scanNow()" :disabled="scanning"
+                class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-lg text-sm transition cursor-pointer">
+                <span x-text="scanning ? 'Taranıyor...' : '⚡ Şimdi Tümünü Tara'"></span>
+            </button>
+        </header>
+
+        <!-- Bildirim Kutusu -->
+        <template x-if="alertMessage">
+            <div :class="alertType === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'"
+                 class="border px-4 py-3 rounded-lg mb-6 text-sm flex justify-between items-center">
+                <span x-text="alertMessage"></span>
+                <button @click="alertMessage = ''" class="text-xs opacity-70 hover:opacity-100">Kapat ✕</button>
+            </div>
+        </template>
+
+        <!-- Yeni Ürün Ekleme Formu -->
+        <section class="bg-slate-900/70 border border-slate-800 rounded-xl p-6 mb-8">
+            <h2 class="text-base font-semibold text-white mb-4">Takibe Yeni Rakip Ürünü Ekle</h2>
+            <form @submit.prevent="addProduct()" class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div class="md:col-span-7">
+                    <label class="block text-xs text-slate-400 mb-1.5">Ürün Linki (Trendyol / Hepsiburada HTTPS)</label>
+                    <input type="url" x-model="newUrl" required placeholder="https://www.trendyol.com/..."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-xs text-slate-400 mb-1.5">Hedef Alarm Fiyatı (Opsiyonel ₺)</label>
+                    <input type="number" step="0.01" x-model="newTargetPrice" placeholder="Örn: 299.90"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="submit" :disabled="adding"
+                        class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition cursor-pointer">
+                        <span x-text="adding ? 'Ekleniyor...' : '+ Takibe Al'"></span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Takip Edilen Ürünler Tablosu -->
+        <section class="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
+                <h2 class="text-base font-semibold text-white">İzlenen Ürünler (<span x-text="products.length"></span>)</h2>
+                <span class="text-xs text-slate-400">Otomatik tarama periyodu: 15 dk</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-xs uppercase text-slate-400 bg-slate-950/40">
+                            <th class="py-3.5 px-6">Ürün Adı</th>
+                            <th class="py-3.5 px-6">Güncel Fiyat</th>
+                            <th class="py-3.5 px-6">Hedef Fiyat</th>
+                            <th class="py-3.5 px-6">Stok Durumu</th>
+                            <th class="py-3.5 px-6 text-right">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/70 text-sm">
+                        <template x-if="products.length === 0">
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-slate-500">Henüz takip edilen ürün yok. Yukarıdan bir link ekleyerek başlayın.</td>
+                            </tr>
+                        </template>
+                        <template x-for="item in products" :key="item.id">
+                            <tr class="hover:bg-slate-800/30 transition">
+                                <td class="py-4 px-6 font-medium text-white max-w-md truncate">
+                                    <a :href="item.url" target="_blank" rel="noopener noreferrer" class="hover:text-indigo-400 transition" x-text="item.title || item.url"></a>
+                                </td>
+                                <td class="py-4 px-6 font-semibold text-emerald-400" x-text="item.last_price ? item.last_price.toFixed(2) + ' ₺' : '-'"></td>
+                                <td class="py-4 px-6 text-slate-400" x-text="item.target_price ? item.target_price.toFixed(2) + ' ₺' : 'Tüm Düşüşler'"></td>
+                                <td class="py-4 px-6">
+                                    <span :class="item.last_in_stock ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'"
+                                          class="text-xs px-2.5 py-1 rounded-full border font-medium"
+                                          x-text="item.last_in_stock ? 'Stokta Var' : 'Tükendi (Fırsat)'"></span>
+                                </td>
+                                <td class="py-4 px-6 text-right">
+                                    <button @click="deleteProduct(item.id)" class="text-xs text-rose-400 hover:text-rose-300 transition cursor-pointer">Sil</button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        function radarApp() {
+            return {
+                products: [],
+                newUrl: '',
+                newTargetPrice: '',
+                adding: false,
+                scanning: false,
+                alertMessage: '',
+                alertType: 'success',
+
+                showAlert(msg, type = 'success') {
+                    this.alertMessage = msg;
+                    this.alertType = type;
+                },
+
+                async fetchProducts() {
+                    const res = await fetch('/products/');
+                    this.products = await res.json();
+                },
+
+                async addProduct() {
+                    this.adding = true;
+                    this.alertMessage = '';
+                    try {
+                        const payload = {
+                            url: this.newUrl,
+                            target_price: this.newTargetPrice ? parseFloat(this.newTargetPrice) : null
+                        };
+                        const res = await fetch('/products/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail || 'Ürün eklenemedi.');
+                        
+                        this.newUrl = '';
+                        this.newTargetPrice = '';
+                        this.showAlert('Ürün başarıyla takibe alındı ve ilk fiyat çekildi!');
+                        await this.fetchProducts();
+                    } catch (err) {
+                        this.showAlert(err.message, 'error');
+                    } finally {
+                        this.adding = false;
+                    }
+                },
+
+                async scanNow() {
+                    this.scanning = true;
+                    try {
+                        await fetch('/scan-now/', { method: 'POST' });
+                        await this.fetchProducts();
+                        this.showAlert('Tüm ürünler tarandı. Değişiklik varsa Telegram bildirimi gönderildi.');
+                    } catch (err) {
+                        this.showAlert('Tarama sırasında hata oluştu.', 'error');
+                    } finally {
+                        this.scanning = false;
+                    }
+                },
+
+                async deleteProduct(id) {
+                    await fetch(/products/, { method: 'DELETE' });
+                    await this.fetchProducts();
+                    this.showAlert('Ürün takipten çıkarıldı.');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
